@@ -77,11 +77,11 @@ const RAVEScreen = () => {
   const fetchModels = async () => {
     try {
         const response = await fetch(`http://${ipAddress}:${port}/getmodels`);
-        const modelList = await response.json();
-        if (Array.isArray(modelList)) {
-        setModels(modelList);
-        if (modelList.length > 0) {
-            setSelectedModel(modelList[0]);
+        const data = await response.json();
+        if (data && Array.isArray(data.models)) {
+        setModels(data.models);
+        if (data.models.length > 0) {
+            setSelectedModel(data.models[0]);
         }
         } else {
         setModels([]);

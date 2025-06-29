@@ -21,6 +21,7 @@ const RAVEScreen = () => {
   const dispatch = useDispatch();
   const ipAddress = useSelector((state) => state.server.ipAddress);
     const port = useSelector((state) => state.server.port);
+    const recordings = useSelector((state) => state.recordings.list);
   
   // États locaux
   const [index, setIndex] = useState(0);
@@ -75,17 +76,22 @@ const RAVEScreen = () => {
   // Récupérer la liste des modèles disponibles
   const fetchModels = async () => {
     try {
-      const response = await fetch(`http://${ipAddress}:${port}/getmodels`);
-      const modelList = await response.json();
-      setModels(modelList);
-      if (modelList.length > 0) {
-        setSelectedModel(modelList[0]);
-      }
+        const response = await fetch(`http://${ipAddress}:${port}/getmodels`);
+        const modelList = await response.json();
+        if (Array.isArray(modelList)) {
+        setModels(modelList);
+        if (modelList.length > 0) {
+            setSelectedModel(modelList[0]);
+        }
+        } else {
+        setModels([]);
+        Alert.alert('Erreur', 'Les données des modèles sont invalides');
+        }
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de récupérer la liste des modèles');
-      console.error('Erreur fetchModels:', error);
+        Alert.alert('Erreur', 'Impossible de récupérer la liste des modèles');
+        console.error('Erreur fetchModels:', error);
     }
-  };
+    };
 
   // Sélectionner un modèle
   const selectModel = async (modelName) => {
@@ -224,7 +230,7 @@ const RAVEScreen = () => {
 
   // Composant pour les enregistrements
   const RecordingsTab = () => (
-    <ScrollView style={styles.tabContent}>
+    <View style={styles.tabContent}>
       <Text style={styles.sectionTitle}>Mes enregistrements</Text>
       <FlatList
         data={recordings}
@@ -253,7 +259,7 @@ const RAVEScreen = () => {
           <Text style={styles.emptyText}>Aucun enregistrement disponible</Text>
         )}
       />
-    </ScrollView>
+    </View>
   );
 
   // Composant pour les fichiers du téléphone

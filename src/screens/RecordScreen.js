@@ -8,6 +8,7 @@ import {
   FlatList,
   TextInput,
   Modal,
+  Platform,
   ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';

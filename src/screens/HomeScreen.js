@@ -126,37 +126,39 @@ const HomeScreen = () => {
   };
 
   const renderModelSelector = () => {
-    if (!isConnected || availableModels.length === 0) {
-      return null;
-    }
+  if (!isConnected || !Array.isArray(availableModels) || availableModels.length === 0) {
+    return null;
+  }
 
-    return (
-      <View style={styles.modelSection}>
-        <Text style={styles.sectionTitle}>Modèles disponibles :</Text>
-        {availableModels.map((model) => (
-          <TouchableOpacity
-            key={model}
+  return (
+    <View style={styles.modelSection}>
+      <Text style={styles.sectionTitle}>Modèles disponibles :</Text>
+      {availableModels.map((model) => (
+        <TouchableOpacity
+          key={model}
+          style={[
+            styles.modelButton,
+            selectedModel === model && styles.selectedModelButton
+          ]}
+          onPress={() => handleModelSelection(model)}
+          disabled={isLoading}
+        >
+          <Text
             style={[
-              styles.modelButton,
-              selectedModel === model && styles.selectedModelButton
-            ]}
-            onPress={() => handleModelSelection(model)}
-            disabled={isLoading}
-          >
-            <Text style={[
               styles.modelButtonText,
               selectedModel === model && styles.selectedModelButtonText
-            ]}>
-              {model}
-            </Text>
-            {selectedModel === model && (
-              <Ionicons name="checkmark-circle" size={20} color="#fff" />
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
+            ]}
+          >
+            {model}
+          </Text>
+          {selectedModel === model && (
+            <Ionicons name="checkmark-circle" size={20} color="#fff" />
+          )}
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+};
 
   return (
     <KeyboardAvoidingView 
@@ -188,7 +190,7 @@ const HomeScreen = () => {
               onChangeText={setLocalIpAddress}
               placeholder="192.168.1.100"
               placeholderTextColor="#999"
-              keyboardType="numeric"
+              keyboardType="default"
               autoCapitalize="none"
               autoCorrect={false}
             />

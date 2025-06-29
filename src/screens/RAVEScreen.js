@@ -19,7 +19,8 @@ import { Platform } from 'react-native';
 
 const RAVEScreen = () => {
   const dispatch = useDispatch();
-  const { serverIP, serverPort, recordings } = useSelector(state => state.app);
+  const ipAddress = useSelector((state) => state.server.ipAddress);
+    const port = useSelector((state) => state.server.port);
   
   // États locaux
   const [index, setIndex] = useState(0);
@@ -74,7 +75,7 @@ const RAVEScreen = () => {
   // Récupérer la liste des modèles disponibles
   const fetchModels = async () => {
     try {
-      const response = await fetch(`http://${serverIP}:${serverPort}/getmodels`);
+      const response = await fetch(`http://${ipAddress}:${port}/getmodels`);
       const modelList = await response.json();
       setModels(modelList);
       if (modelList.length > 0) {
@@ -89,7 +90,7 @@ const RAVEScreen = () => {
   // Sélectionner un modèle
   const selectModel = async (modelName) => {
     try {
-      const response = await fetch(`http://${serverIP}:${serverPort}/selectModel/${modelName}`);
+      const response = await fetch(`http://${ipAddress}:${port}/selectModel/${modelName}`);
       if (response.ok) {
         setSelectedModel(modelName);
         Alert.alert('Succès', `Modèle ${modelName} sélectionné`);
@@ -117,7 +118,7 @@ const RAVEScreen = () => {
         name: 'audio.wav',
       });
 
-      const response = await fetch(`http://${serverIP}:${serverPort}/upload`, {
+      const response = await fetch(`http://${ipAddress}:${port}/upload`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -142,7 +143,7 @@ const RAVEScreen = () => {
   // Télécharger le fichier audio transformé
   const downloadTransformedAudio = async () => {
     try {
-      const downloadUrl = `http://${serverIP}:${serverPort}/download`;
+      const downloadUrl = `http://${ipAddress}:${port}/download`;
       const fileUri = FileSystem.documentDirectory + 'transformed_audio.wav';
       
       const downloadResult = await FileSystem.downloadAsync(downloadUrl, fileUri);

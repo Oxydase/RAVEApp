@@ -7,6 +7,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
 
+
 import { store, persistor } from './src/store/store';
 import HomeScreen from './src/screens/HomeScreen';
 import RecordScreen from './src/screens/RecordScreen';

@@ -9,15 +9,14 @@ import {
   TextInput,
   Modal,
   Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system';
 
 import {
   addRecording,
   removeRecording,
-  setCurrentRecording,
   setRecordingStatus,
   setPlayingStatus,
 } from '../store/slices/recordingsSlice';
@@ -36,66 +35,43 @@ const RecordScreen = () => {
 
   useEffect(() => {
     return () => {
-      // Nettoyage lors du démontage du composant
-      if (recordingTimer) {
-        clearInterval(recordingTimer);
-      }
+      if (recordingTimer) clearInterval(recordingTimer);
       audioService.cleanup();
     };
   }, []);
 
-  // Démarrer l'enregistrement
   const startRecording = async () => {
     try {
       const result = await audioService.startRecording();
-      
       if (result.success) {
         dispatch(setRecordingStatus(true));
         setRecordingDuration(0);
-        
-        // Démarrer le timer pour afficher la durée
-        const timer = setInterval(() => {
-          setRecordingDuration(prev => prev + 1);
-        }, 1000);
+        const timer = setInterval(() => setRecordingDuration(prev => prev + 1), 1000);
         setRecordingTimer(timer);
       } else {
         Alert.alert('Erreur', 'Impossible de démarrer l\'enregistrement');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Erreur', 'Erreur lors du démarrage de l\'enregistrement');
     }
   };
 
-  // Arrêter l'enregistrement
   const stopRecording = async () => {
     try {
       const result = await audioService.stopRecording();
-      
       if (result.success) {
         dispatch(setRecordingStatus(false));
-        
-        if (recordingTimer) {
-          clearInterval(recordingTimer);
-          setRecordingTimer(null);
-        }
-        
-        // Sauvegarder temporairement l'enregistrement
-        setTempRecording({
-          uri: result.uri,
-          duration: result.duration,
-        });
-        
-        // Ouvrir le modal pour nommer l'enregistrement
+        if (recordingTimer) clearInterval(recordingTimer);
+        setTempRecording({ uri: result.uri, duration: result.duration });
         setShowSaveModal(true);
       } else {
         Alert.alert('Erreur', 'Impossible d\'arrêter l\'enregistrement');
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Erreur', 'Erreur lors de l\'arrêt de l\'enregistrement');
     }
   };
 
-  // Sauvegarder l'enregistrement
   const saveRecording = async () => {
     if (!recordingName.trim()) {
       Alert.alert('Erreur', 'Veuillez entrer un nom pour l\'enregistrement');
@@ -108,36 +84,36 @@ const RecordScreen = () => {
     }
 
     try {
-      const fileName = `${recordingName.trim()}_${Date.now()}`;
-      const result = await audioService.saveRecording(tempRecording.uri, fileName);
-      
-      if (result.success) {
-        const newRecording = {
-          id: Date.now().toString(),
-          name: recordingName.trim(),
-          uri: result.uri,
-          duration: tempRecording.duration,
-          createdAt: new Date().toISOString(),
-        };
-        
-        dispatch(addRecording(newRecording));
-        
-        // Réinitialiser les états
-        setShowSaveModal(false);
-        setRecordingName('');
-        setTempRecording(null);
-        setRecordingDuration(0);
-        
-        Alert.alert('Succès', 'Enregistrement sauvegardé !');
-      } else {
-        Alert.alert('Erreur', 'Impossible de sauvegarder l\'enregistrement');
-      }
+      const fileName = `${recordingName.trim()}_${Date.now()}.wav`;
+      const newUri = FileSystem.documentDirectory + fileName;
+
+      await FileSystem.copyAsync({
+        from: tempRecording.uri,
+        to: newUri,
+      });
+
+      const newRecording = {
+        id: Date.now().toString(),
+        name: recordingName.trim(),
+        uri: newUri,
+        duration: tempRecording.duration,
+        createdAt: new Date().toISOString(),
+      };
+
+      dispatch(addRecording(newRecording));
+
+      setShowSaveModal(false);
+      setRecordingName('');
+      setTempRecording(null);
+      setRecordingDuration(0);
+
+      Alert.alert('Succès', 'Enregistrement sauvegardé !');
     } catch (error) {
       Alert.alert('Erreur', 'Erreur lors de la sauvegarde');
+      console.error('Erreur copie fichier:', error);
     }
   };
 
-  // Annuler la sauvegarde
   const cancelSave = () => {
     setShowSaveModal(false);
     setRecordingName('');
@@ -145,24 +121,18 @@ const RecordScreen = () => {
     setRecordingDuration(0);
   };
 
-  // Lire un enregistrement
   const playRecording = async (recording) => {
     try {
       if (currentPlayingId === recording.id && isPlaying) {
-        // Arrêter la lecture
         await audioService.stopSound();
         setCurrentPlayingId(null);
         dispatch(setPlayingStatus(false));
       } else {
-        // Démarrer la lecture
-        await audioService.stopSound(); // Arrêter tout autre son en cours
+        await audioService.stopSound();
         const result = await audioService.playSound(recording.uri);
-        
         if (result.success) {
           setCurrentPlayingId(recording.id);
           dispatch(setPlayingStatus(true));
-          
-          // Arrêter automatiquement après la durée de l'enregistrement
           setTimeout(() => {
             setCurrentPlayingId(null);
             dispatch(setPlayingStatus(false));
@@ -171,16 +141,15 @@ const RecordScreen = () => {
           Alert.alert('Erreur', 'Impossible de lire l\'enregistrement');
         }
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Erreur', 'Erreur lors de la lecture');
     }
   };
 
-  // Supprimer un enregistrement
   const deleteRecording = (recording) => {
     Alert.alert(
       'Confirmer la suppression',
-      `Êtes-vous sûr de vouloir supprimer "${recording.name}" ?`,
+      `Supprimer "${recording.name}" ?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -190,12 +159,11 @@ const RecordScreen = () => {
             try {
               await audioService.deleteRecording(recording.uri);
               dispatch(removeRecording(recording.id));
-              
               if (currentPlayingId === recording.id) {
                 setCurrentPlayingId(null);
                 dispatch(setPlayingStatus(false));
               }
-            } catch (error) {
+            } catch {
               Alert.alert('Erreur', 'Impossible de supprimer l\'enregistrement');
             }
           },
@@ -204,14 +172,12 @@ const RecordScreen = () => {
     );
   };
 
-  // Formater la durée en mm:ss
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Rendu d'un élément de la liste
   const renderRecordingItem = ({ item }) => (
     <View style={styles.recordingItem}>
       <View style={styles.recordingInfo}>
@@ -221,13 +187,12 @@ const RecordScreen = () => {
           {new Date(item.createdAt).toLocaleDateString()}
         </Text>
       </View>
-      
       <View style={styles.recordingActions}>
         <TouchableOpacity
           style={[
             styles.actionButton,
             styles.playButton,
-            currentPlayingId === item.id && isPlaying && styles.playingButton
+            currentPlayingId === item.id && isPlaying && styles.playingButton,
           ]}
           onPress={() => playRecording(item)}
         >
@@ -237,7 +202,6 @@ const RecordScreen = () => {
             color="#fff"
           />
         </TouchableOpacity>
-        
         <TouchableOpacity
           style={[styles.actionButton, styles.deleteButton]}
           onPress={() => deleteRecording(item)}
@@ -250,37 +214,22 @@ const RecordScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Section d'enregistrement */}
       <View style={styles.recordSection}>
         <View style={styles.recordingIndicator}>
-          {isRecording && (
-            <View style={styles.recordingDot} />
-          )}
-          <Text style={styles.durationText}>
-            {formatDuration(recordingDuration)}
-          </Text>
+          {isRecording && <View style={styles.recordingDot} />}
+          <Text style={styles.durationText}>{formatDuration(recordingDuration)}</Text>
         </View>
-        
         <TouchableOpacity
-          style={[
-            styles.recordButton,
-            isRecording && styles.recordingButton
-          ]}
+          style={[styles.recordButton, isRecording && styles.recordingButton]}
           onPress={isRecording ? stopRecording : startRecording}
         >
-          <Ionicons
-            name={isRecording ? "stop" : "mic"}
-            size={40}
-            color="#fff"
-          />
+          <Ionicons name={isRecording ? "stop" : "mic"} size={40} color="#fff" />
         </TouchableOpacity>
-        
         <Text style={styles.recordButtonText}>
           {isRecording ? "Appuyer pour arrêter" : "Appuyer pour enregistrer"}
         </Text>
       </View>
 
-      {/* Liste des enregistrements */}
       <View style={styles.listSection}>
         <Text style={styles.sectionTitle}>
           Mes enregistrements ({recordings.length})
@@ -288,9 +237,7 @@ const RecordScreen = () => {
         {recordings.length === 0 ? (
           <View style={styles.emptyState}>
             <Ionicons name="musical-notes-outline" size={60} color="#ccc" />
-            <Text style={styles.emptyStateText}>
-              Aucun enregistrement
-            </Text>
+            <Text style={styles.emptyStateText}>Aucun enregistrement</Text>
             <Text style={styles.emptyStateSubtext}>
               Appuyez sur le bouton d'enregistrement pour commencer
             </Text>
@@ -305,17 +252,10 @@ const RecordScreen = () => {
         )}
       </View>
 
-      {/* Modal de sauvegarde */}
-      <Modal
-        visible={showSaveModal}
-        transparent
-        animationType="slide"
-        onRequestClose={cancelSave}
-      >
+      <Modal visible={showSaveModal} transparent animationType="slide" onRequestClose={cancelSave}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Sauvegarder l'enregistrement</Text>
-            
             <TextInput
               style={styles.modalInput}
               value={recordingName}
@@ -324,7 +264,6 @@ const RecordScreen = () => {
               placeholderTextColor="#999"
               autoFocus
             />
-            
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
@@ -332,7 +271,6 @@ const RecordScreen = () => {
               >
                 <Text style={styles.cancelButtonText}>Annuler</Text>
               </TouchableOpacity>
-              
               <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={saveRecording}

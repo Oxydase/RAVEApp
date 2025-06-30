@@ -16,12 +16,13 @@ import * as FileSystem from 'expo-file-system';
 import { TabView, SceneMap, TabBar } from 'react-native-tab-view';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { Platform } from 'react-native';
+import { Asset } from 'expo-asset';
 
 const RAVEScreen = () => {
   const dispatch = useDispatch();
   const ipAddress = useSelector((state) => state.server.ipAddress);
-    const port = useSelector((state) => state.server.port);
-    const recordings = useSelector((state) => state.recordings.list);
+  const port = useSelector((state) => state.server.port);
+  const recordings = useSelector((state) => state.recordings.recordings);
   
   // États locaux
   const [index, setIndex] = useState(0);
@@ -41,27 +42,27 @@ const RAVEScreen = () => {
     { key: 'files', title: 'Fichiers' },
   ]);
 
-  // Sons par défaut (utilisation des assets Expo)
+  // Sons par défaut - CORRECTION ICI
   const defaultSounds = [
     { 
       name: 'Sample 1', 
-      uri: require('../assets/sounds/sample1.wav'),
-      localUri: '../assets/sounds/sample1.wav'
+      asset: require('../assets/sounds/sample1.wav'),
+      id: 'sample1'
     },
     { 
       name: 'Sample 2', 
-      uri: require('../assets/sounds/sample2.wav'),
-      localUri: '../assets/sounds/sample2.wav'
+      asset: require('../assets/sounds/sample2.wav'),
+      id: 'sample2'
     },
     { 
       name: 'Sample 3', 
-      uri: require('../assets/sounds/sample3.wav'),
-      localUri: '../assets/sounds/sample3.wav'
+      asset: require('../assets/sounds/sample3.wav'),
+      id: 'sample3'
     },
   ];
 
   useEffect(() => {
-    fetchModels();
+    fetchModels(); 
     return () => {
       // Cleanup audio lors du démontage du composant
       if (originalSound) {
@@ -71,27 +72,38 @@ const RAVEScreen = () => {
         transformedSound.unloadAsync();
       }
     };
-  }, []);
+  }, [recordings]);
 
   // Récupérer la liste des modèles disponibles
   const fetchModels = async () => {
     try {
-        const response = await fetch(`http://${ipAddress}:${port}/getmodels`);
-        const data = await response.json();
-        if (data && Array.isArray(data.models)) {
+      if (!ipAddress || !port) {
+        Alert.alert('Erreur', 'Veuillez d\'abord vous connecter au serveur');
+        return;
+      }
+      
+      const response = await fetch(`http://${ipAddress}:${port}/getmodels`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Models received:', data);
+      
+      if (data && Array.isArray(data.models)) {
         setModels(data.models);
         if (data.models.length > 0) {
-            setSelectedModel(data.models[0]);
+          setSelectedModel(data.models[0]);
         }
-        } else {
+      } else {
         setModels([]);
         Alert.alert('Erreur', 'Les données des modèles sont invalides');
-        }
+      }
     } catch (error) {
-        Alert.alert('Erreur', 'Impossible de récupérer la liste des modèles');
-        console.error('Erreur fetchModels:', error);
+      Alert.alert('Erreur', 'Impossible de récupérer la liste des modèles: ' + error.message);
+      console.error('Erreur fetchModels:', error);
     }
-    };
+  };
 
   // Sélectionner un modèle
   const selectModel = async (modelName) => {
@@ -100,31 +112,71 @@ const RAVEScreen = () => {
       if (response.ok) {
         setSelectedModel(modelName);
         Alert.alert('Succès', `Modèle ${modelName} sélectionné`);
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de sélectionner le modèle');
+      Alert.alert('Erreur', 'Impossible de sélectionner le modèle: ' + error.message);
       console.error('Erreur selectModel:', error);
     }
   };
 
-  // Upload du fichier audio vers le serveur
-  const uploadAudio = async (audioUri) => {
-    if (!audioUri) {
+  // Fonction pour convertir un asset en URI de fichier
+  const getAssetUri = async (asset) => {
+    try {
+      const assetInfo = await Asset.fromModule(asset).downloadAsync();
+      return assetInfo.localUri;
+    } catch (error) {
+      console.error('Erreur conversion asset:', error);
+      throw error;
+    }
+  };
+
+  // Upload du fichier audio vers le serveur - CORRECTION ICI
+  const uploadAudio = async (audioData) => {
+    if (!audioData) {
       Alert.alert('Erreur', 'Aucun fichier audio sélectionné');
+      return;
+    }
+
+    if (!selectedModel) {
+      Alert.alert('Erreur', 'Veuillez sélectionner un modèle');
       return;
     }
 
     setIsProcessing(true);
     
     try {
+      let audioUri = audioData.uri;
+      
+      // Si c'est un son par défaut (asset), convertir en URI
+      if (audioData.asset) {
+        console.log('Conversion asset en URI...');
+        audioUri = await getAssetUri(audioData.asset);
+        console.log('URI convertie:', audioUri);
+      }
+
+      if (!audioUri) {
+        throw new Error('URI audio invalide');
+      }
+
+      // Vérifier que le fichier existe
+      const fileInfo = await FileSystem.getInfoAsync(audioUri);
+      if (!fileInfo.exists) {
+        throw new Error('Le fichier audio n\'existe pas');
+      }
+
+      console.log('Upload du fichier:', audioUri);
+      console.log('Taille du fichier:', fileInfo.size);
+
       const formData = new FormData();
-      formData.append('audio', {
+      formData.append('file', {
         uri: audioUri,
         type: 'audio/wav',
         name: 'audio.wav',
       });
 
-      const response = await fetch(`http://${ipAddress}:${port}/upload`, {
+      const uploadResponse = await fetch(`http://${ipAddress}:${port}/upload`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -132,11 +184,17 @@ const RAVEScreen = () => {
         },
       });
 
-      if (response.ok) {
+      console.log('Upload response status:', uploadResponse.status);
+
+      if (uploadResponse.ok) {
+        const responseText = await uploadResponse.text();
+        console.log('Upload response:', responseText);
+        
         // Télécharger automatiquement le fichier transformé
         await downloadTransformedAudio();
       } else {
-        Alert.alert('Erreur', 'Échec de l\'upload du fichier audio');
+        const errorText = await uploadResponse.text();
+        throw new Error(`Upload failed: ${uploadResponse.status} - ${errorText}`);
       }
     } catch (error) {
       Alert.alert('Erreur', 'Erreur lors de l\'upload: ' + error.message);
@@ -152,13 +210,26 @@ const RAVEScreen = () => {
       const downloadUrl = `http://${ipAddress}:${port}/download`;
       const fileUri = FileSystem.documentDirectory + 'transformed_audio.wav';
       
+      console.log('Téléchargement depuis:', downloadUrl);
+      console.log('Vers:', fileUri);
+      
       const downloadResult = await FileSystem.downloadAsync(downloadUrl, fileUri);
+      
+      console.log('Download result:', downloadResult);
       
       if (downloadResult.status === 200) {
         // Charger le son transformé
         const { sound } = await Audio.Sound.createAsync({ uri: downloadResult.uri });
+        
+        // Nettoyer l'ancien son transformé
+        if (transformedSound) {
+          await transformedSound.unloadAsync();
+        }
+        
         setTransformedSound(sound);
         Alert.alert('Succès', 'Audio transformé téléchargé avec succès');
+      } else {
+        throw new Error(`Download failed with status: ${downloadResult.status}`);
       }
     } catch (error) {
       Alert.alert('Erreur', 'Erreur lors du téléchargement: ' + error.message);
@@ -176,10 +247,18 @@ const RAVEScreen = () => {
         } else {
           await originalSound.playAsync();
           setIsPlayingOriginal(true);
+          
+          // Auto-stop à la fin
+          originalSound.setOnPlaybackStatusUpdate((status) => {
+            if (status.didJustFinish) {
+              setIsPlayingOriginal(false);
+            }
+          });
         }
       }
     } catch (error) {
       console.error('Erreur playOriginalAudio:', error);
+      Alert.alert('Erreur', 'Impossible de lire l\'audio original');
     }
   };
 
@@ -193,32 +272,47 @@ const RAVEScreen = () => {
         } else {
           await transformedSound.playAsync();
           setIsPlayingTransformed(true);
+          
+          // Auto-stop à la fin
+          transformedSound.setOnPlaybackStatusUpdate((status) => {
+            if (status.didJustFinish) {
+              setIsPlayingTransformed(false);
+            }
+          });
         }
       }
     } catch (error) {
       console.error('Erreur playTransformedAudio:', error);
+      Alert.alert('Erreur', 'Impossible de lire l\'audio transformé');
     }
   };
 
-  // Composant pour les sons par défaut
+  // Composant pour les sons par défaut - CORRECTION ICI
   const DefaultSoundsTab = () => (
     <ScrollView style={styles.tabContent}>
       <Text style={styles.sectionTitle}>Sons par défaut</Text>
       {defaultSounds.map((sound, index) => (
         <TouchableOpacity
-          key={index}
+          key={sound.id}
           style={[
             styles.soundItem,
-            selectedAudio?.name === sound.name && styles.selectedItem
+            selectedAudio?.id === sound.id && styles.selectedItem
           ]}
           onPress={async () => {
-            setSelectedAudio(sound);
-            // Charger le son pour la prévisualisation
-            const { sound: audioObject } = await Audio.Sound.createAsync(sound.uri);
-            if (originalSound) {
-              await originalSound.unloadAsync();
+            try {
+              console.log('Sélection son par défaut:', sound.name);
+              setSelectedAudio(sound);
+              
+              // Charger le son pour la prévisualisation
+              const { sound: audioObject } = await Audio.Sound.createAsync(sound.asset);
+              if (originalSound) {
+                await originalSound.unloadAsync();
+              }
+              setOriginalSound(audioObject);
+            } catch (error) {
+              console.error('Erreur sélection son par défaut:', error);
+              Alert.alert('Erreur', 'Impossible de charger le son par défaut');
             }
-            setOriginalSound(audioObject);
           }}
         >
           <Icon name="musical-notes" size={24} color="#4A90E2" />
@@ -228,39 +322,68 @@ const RAVEScreen = () => {
     </ScrollView>
   );
 
-  // Composant pour les enregistrements
-  const RecordingsTab = () => (
-    <View style={styles.tabContent}>
-      <Text style={styles.sectionTitle}>Mes enregistrements</Text>
-      <FlatList
-        data={recordings}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[
-              styles.soundItem,
-              selectedAudio?.id === item.id && styles.selectedItem
-            ]}
-            onPress={async () => {
-              setSelectedAudio(item);
-              // Charger le son pour la prévisualisation
-              const { sound: audioObject } = await Audio.Sound.createAsync({ uri: item.uri });
-              if (originalSound) {
-                await originalSound.unloadAsync();
-              }
-              setOriginalSound(audioObject);
-            }}
-          >
-            <Icon name="mic" size={24} color="#4A90E2" />
-            <Text style={styles.soundName}>{item.name}</Text>
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={() => (
-          <Text style={styles.emptyText}>Aucun enregistrement disponible</Text>
-        )}
-      />
-    </View>
-  );
+  // Composant pour les enregistrements - AMÉLIORÉ
+  const RecordingsTab = () => {
+    console.log('=== RecordingsTab rendu ===');
+    console.log('Recordings dans RecordingsTab:', recordings);
+    
+    return (
+      <View style={styles.tabContent}>
+        <Text style={styles.sectionTitle}>Mes enregistrements ({recordings?.length || 0})</Text>
+        <FlatList
+          data={recordings || []}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => {
+            console.log('Rendu item:', item);
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.soundItem,
+                  selectedAudio?.id === item.id && styles.selectedItem
+                ]}
+                onPress={async () => {
+                  try {
+                    console.log('Sélection enregistrement:', item);
+                    setSelectedAudio(item);
+                    
+                    // Vérifier que le fichier existe
+                    const fileInfo = await FileSystem.getInfoAsync(item.uri);
+                    if (!fileInfo.exists) {
+                      Alert.alert('Erreur', 'Le fichier d\'enregistrement n\'existe plus');
+                      return;
+                    }
+                    
+                    const { sound: audioObject } = await Audio.Sound.createAsync({ uri: item.uri });
+                    if (originalSound) {
+                      await originalSound.unloadAsync();
+                    }
+                    setOriginalSound(audioObject);
+                  } catch (error) {
+                    console.error('Erreur chargement enregistrement:', error);
+                    Alert.alert('Erreur', 'Impossible de charger l\'enregistrement');
+                  }
+                }}
+              >
+                <Icon name="mic" size={24} color="#4A90E2" />
+                <Text style={styles.soundName}>{item.name}</Text>
+                <Text style={styles.soundDuration}>
+                  {item.duration ? `${Math.round(item.duration / 1000)}s` : ''}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
+          ListEmptyComponent={() => (
+            <View>
+              <Text style={styles.emptyText}>Aucun enregistrement disponible</Text>
+              <Text style={styles.debugText}>
+                Allez dans l'onglet "Enregistrement" pour créer des clips audio
+              </Text>
+            </View>
+          )}
+        />
+      </View>
+    );
+  };
 
   // Composant pour les fichiers du téléphone
   const FilesTab = () => (
@@ -275,12 +398,17 @@ const RAVEScreen = () => {
               copyToCacheDirectory: true,
             });
             
+            console.log('Document picker result:', result);
+            
             if (!result.canceled && result.assets[0]) {
               const file = result.assets[0];
-              setSelectedAudio({
+              const audioData = {
+                id: 'file_' + Date.now(),
                 name: file.name,
                 uri: file.uri,
-              });
+              };
+              
+              setSelectedAudio(audioData);
               
               // Charger le son pour la prévisualisation
               const { sound: audioObject } = await Audio.Sound.createAsync({ uri: file.uri });
@@ -290,7 +418,7 @@ const RAVEScreen = () => {
               setOriginalSound(audioObject);
             }
           } catch (error) {
-            Alert.alert('Erreur', 'Impossible de sélectionner le fichier');
+            Alert.alert('Erreur', 'Impossible de sélectionner le fichier: ' + error.message);
             console.error('Erreur sélection fichier:', error);
           }
         }}
@@ -299,7 +427,7 @@ const RAVEScreen = () => {
         <Text style={styles.buttonText}>Sélectionner un fichier audio</Text>
       </TouchableOpacity>
       
-      {selectedAudio && (
+      {selectedAudio && index === 2 && (
         <View style={styles.selectedFileInfo}>
           <Icon name="checkmark-circle" size={24} color="#4CAF50" />
           <Text style={styles.selectedFileName}>{selectedAudio.name}</Text>
@@ -329,9 +457,21 @@ const RAVEScreen = () => {
     <View style={styles.container}>
       <Text style={styles.title}>RAVE - Transfert de Timbre</Text>
 
+      {/* Status de connexion */}
+      {(!ipAddress || !port) && (
+        <View style={styles.warningBanner}>
+          <Icon name="warning" size={20} color="#ff9800" />
+          <Text style={styles.warningText}>
+            Veuillez vous connecter au serveur dans l'onglet "Connexion"
+          </Text>
+        </View>
+      )}
+
       {/* Sélection du modèle */}
       <View style={styles.modelSection}>
-        <Text style={styles.sectionTitle}>Modèle sélectionné: {selectedModel}</Text>
+        <Text style={styles.sectionTitle}>
+          Modèle sélectionné: {selectedModel || 'Aucun'}
+        </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {models.map((model, modelIndex) => (
             <TouchableOpacity
@@ -351,6 +491,12 @@ const RAVEScreen = () => {
             </TouchableOpacity>
           ))}
         </ScrollView>
+        {models.length === 0 && (
+          <TouchableOpacity style={styles.refreshButton} onPress={fetchModels}>
+            <Icon name="refresh" size={20} color="#4A90E2" />
+            <Text style={styles.refreshText}>Actualiser les modèles</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Tabs pour la sélection audio */}
@@ -394,9 +540,12 @@ const RAVEScreen = () => {
 
         {/* Bouton de traitement */}
         <TouchableOpacity
-          style={[styles.processButton, (!selectedAudio || isProcessing) && styles.disabledButton]}
-          onPress={() => uploadAudio(selectedAudio?.uri)}
-          disabled={!selectedAudio || isProcessing}
+          style={[
+            styles.processButton, 
+            (!selectedAudio || isProcessing || !selectedModel || !ipAddress) && styles.disabledButton
+          ]}
+          onPress={() => uploadAudio(selectedAudio)}
+          disabled={!selectedAudio || isProcessing || !selectedModel || !ipAddress}
         >
           {isProcessing ? (
             <ActivityIndicator size="small" color="#fff" />

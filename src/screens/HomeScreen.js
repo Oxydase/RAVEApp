@@ -36,17 +36,21 @@ const HomeScreen = () => {
     error 
   } = useSelector((state) => state.server);
 
+  // États locaux pour stocker temporairement les valeurs IP et port dans les champs de saisie
   const [localIpAddress, setLocalIpAddress] = useState(ipAddress);
   const [localPort, setLocalPort] = useState(port);
 
   useEffect(() => {
-    // Si on a déjà une configuration sauvegardée, essayer de se connecter automatiquement
+    // Au montage du composant, si on a une config serveur sauvegardée mais pas encore connecté,
+    // essayer automatiquement d'établir la connexion au serveur
     if (ipAddress && port && !isConnected) {
       handleTestConnection();
     }
   }, []);
 
+  // Fonction pour tester la connexion au serveur avec l'adresse IP et le port fournis
   const handleTestConnection = async () => {
+    // Validation des champs IP et port
     if (!localIpAddress.trim()) {
       Alert.alert('Erreur', 'Veuillez entrer une adresse IP');
       return;
@@ -57,31 +61,34 @@ const HomeScreen = () => {
       return;
     }
 
+    // Affiche le loader et réinitialise les erreurs
     dispatch(setLoading(true));
     dispatch(setError(null));
 
-    // Configurer le service serveur
+    // Configure le service avec les paramètres IP et port entrés
     serverService.setServerConfig(localIpAddress.trim(), localPort.trim());
 
     try {
-      // Test de connexion
+      // Teste la connexion au serveur via le service
       const connectionResult = await serverService.testConnection();
       
       if (connectionResult.success) {
-        // Sauvegarder la configuration
+        // Si connexion réussie, sauvegarde la configuration dans le store Redux
         dispatch(setServerConfig({
           ipAddress: localIpAddress.trim(),
           port: localPort.trim(),
         }));
         
+        // Met à jour le statut de connexion
         dispatch(setConnectionStatus(true));
         
-        // Récupérer les modèles disponibles
+        // Récupère la liste des modèles disponibles depuis le serveur
         const modelsResult = await serverService.getModels();
         
         if (modelsResult.success) {
+          // Stocke les modèles dans le store Redux
           dispatch(setAvailableModels(modelsResult.data));
-          // Sélectionner le premier modèle par défaut
+          // Sélectionne automatiquement le premier modèle de la liste
           if (modelsResult.data.length > 0) {
             const firstModel = modelsResult.data[0];
             dispatch(setSelectedModel(firstModel));
@@ -91,28 +98,34 @@ const HomeScreen = () => {
         
         Alert.alert('Succès', 'Connexion établie avec le serveur !');
       } else {
+        // En cas d'échec de connexion, met à jour le store et affiche une alerte
         dispatch(setConnectionStatus(false));
         dispatch(setError(connectionResult.message));
         Alert.alert('Erreur de connexion', connectionResult.message);
       }
     } catch (error) {
+      // Gestion des erreurs réseau ou autres exceptions
       dispatch(setConnectionStatus(false));
       dispatch(setError(error.message));
       Alert.alert('Erreur', 'Impossible de se connecter au serveur');
     } finally {
+      // Cache le loader, quelle que soit l'issue
       dispatch(setLoading(false));
     }
   };
 
+  // Fonction pour changer de modèle sélectionné sur le serveur
   const handleModelSelection = async (modelName) => {
-    if (modelName === selectedModel) return;
+    if (modelName === selectedModel) return; // Si déjà sélectionné, ne rien faire
 
     dispatch(setLoading(true));
     
     try {
+      // Appelle le service pour changer le modèle côté serveur
       const result = await serverService.selectModel(modelName);
       
       if (result.success) {
+        // Met à jour le modèle sélectionné dans le store
         dispatch(setSelectedModel(modelName));
         Alert.alert('Succès', `Modèle "${modelName}" sélectionné`);
       } else {
@@ -125,41 +138,43 @@ const HomeScreen = () => {
     }
   };
 
+  // Rend la liste des modèles disponibles sous forme de boutons sélectionnables
   const renderModelSelector = () => {
-  if (!isConnected || !Array.isArray(availableModels) || availableModels.length === 0) {
-    return null;
-  }
+    if (!isConnected || !Array.isArray(availableModels) || availableModels.length === 0) {
+      return null; // Ne rien afficher si pas connecté ou pas de modèles
+    }
 
-  return (
-    <View style={styles.modelSection}>
-      <Text style={styles.sectionTitle}>Modèles disponibles :</Text>
-      {availableModels.map((model) => (
-        <TouchableOpacity
-          key={model}
-          style={[
-            styles.modelButton,
-            selectedModel === model && styles.selectedModelButton
-          ]}
-          onPress={() => handleModelSelection(model)}
-          disabled={isLoading}
-        >
-          <Text
+    return (
+      <View style={styles.modelSection}>
+        <Text style={styles.sectionTitle}>Modèles disponibles :</Text>
+        {availableModels.map((model) => (
+          <TouchableOpacity
+            key={model}
             style={[
-              styles.modelButtonText,
-              selectedModel === model && styles.selectedModelButtonText
+              styles.modelButton,
+              selectedModel === model && styles.selectedModelButton
             ]}
+            onPress={() => handleModelSelection(model)}
+            disabled={isLoading}
           >
-            {model}
-          </Text>
-          {selectedModel === model && (
-            <Ionicons name="checkmark-circle" size={20} color="#fff" />
-          )}
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-};
+            <Text
+              style={[
+                styles.modelButtonText,
+                selectedModel === model && styles.selectedModelButtonText
+              ]}
+            >
+              {model}
+            </Text>
+            {selectedModel === model && (
+              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
 
+  // Composant principal retourné, affichant la configuration, le statut et les modèles
   return (
     <KeyboardAvoidingView 
       style={styles.container}
@@ -233,8 +248,10 @@ const HomeScreen = () => {
           )}
         </View>
 
+        {/* Affiche le sélecteur de modèles si connecté */}
         {renderModelSelector()}
 
+        {/* Message d'information affiché uniquement si connecté */}
         {isConnected && (
           <View style={styles.infoContainer}>
             <Ionicons name="information-circle-outline" size={24} color="#2196F3" />

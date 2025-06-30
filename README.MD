@@ -137,10 +137,8 @@ Le serveur Flask expose les endpoints suivants :
 ```
 RAVEApp/
 ├── src/
-│   ├── components/     # Composants réutilisables
 │   ├── screens/        # Vues principales (Home, Record, RAVE)
 │   ├── store/          # Configuration Redux
-│   ├── utils/          # Fonctions utilitaires
 │   └── assets/         # Sons par défaut
 ├── package.json
 └── README.md

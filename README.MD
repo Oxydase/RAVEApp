@@ -2,7 +2,7 @@
 
 Application mobile React Native permettant de transformer des enregistrements audio en utilisant des modèles de réseaux de neurones RAVE  développés à l'IRCAM.
 
-## 🎯 Concept
+## Concept
 
 Cette application permet de réaliser un transfert de timbre audio.
 
@@ -13,14 +13,14 @@ Cette application permet de réaliser un transfert de timbre audio.
 - **Chats** - Transfert vers des miaulements de chat
 - **Chiens** - Transfert vers des aboiements de chien
 
-## 🏗️ Architecture
+## Architecture
 
 L'application est composée de :
 - **Client React Native** : Interface mobile pour l'enregistrement et la lecture
 - **Serveur Python Flask** : Traitement des modèles RAVE via ONNX
 - **Redux Store** : Gestion d'état globale de l'application
 
-## 📱 Fonctionnalités
+## Fonctionnalités
 
 ### Vue Home
 - Configuration de la connexion au serveur (IP et port)
@@ -41,7 +41,7 @@ L'application est composée de :
 - Téléchargement et lecture du résultat transformé
 - Comparaison audio original/transformé
 
-## 🚀 Installation et Démarrage
+## Installation et Démarrage
 
 ### Prérequis
 - Node.js (v16 ou supérieur)
@@ -109,7 +109,7 @@ npx expo start
 # ou utiliser un émulateur Android/iOS
 ```
 
-## 📡 API du Serveur
+## API du Serveur
 
 Le serveur Flask expose les endpoints suivants :
 
@@ -121,7 +121,7 @@ Le serveur Flask expose les endpoints suivants :
 | `/getmodels` | GET | Liste des modèles disponibles (JSON) |
 | `/selectModel/<modelname>` | GET | Sélection du modèle à utiliser |
 
-## 🛠️ Technologies Utilisées
+## Technologies Utilisées
 
 ### Frontend (React Native)
 - **React Navigation** - Navigation par tabs avec swipe
@@ -132,7 +132,7 @@ Le serveur Flask expose les endpoints suivants :
 
 
 
-## 📁 Structure du Projet
+## Structure du Projet
 
 ```
 RAVEApp/
@@ -144,7 +144,7 @@ RAVEApp/
 └── README.md
 ```
 
-## 🔧 Configuration Redux
+## Configuration Redux
 
 L'application utilise Redux pour :
 - Gestion de la connexion serveur
@@ -152,7 +152,7 @@ L'application utilise Redux pour :
 - Paramètres de l'application
 - Persistance des données avec Redux Persist
 
-## 🚢 Déploiement
+## Déploiement
 
 L'application est publiée sur Expo pour être accessible via QR Code :
 
